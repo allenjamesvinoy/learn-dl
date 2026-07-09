@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From Data to Optimizers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --paper:  #f5f1ea;
+  --paper2: #ede9e0;
+  --paper3: #e3ddd2;
+  --ink:    #1e1b16;
+  --ink2:   #4a4438;
+  --ink3:   #8a8070;
+  --rule:   rgba(30,27,22,0.09);
+  --rule2:  rgba(30,27,22,0.17);
+  --accent: #3b52b0;
+}
+html, body { height: 100%; overflow: hidden; }
+body { font-family:'DM Sans',sans-serif; background:var(--paper); color:var(--ink); display:flex; flex-direction:column; }
+
+/* ── TOP BAR ── */
+#topbar {
+  display:flex; align-items:center; gap:0;
+  border-bottom:1.5px solid var(--rule2);
+  background:var(--paper2);
+  padding:0 28px;
+  height:52px;
+  flex-shrink:0;
+}
+#topbar .brand { font-family:'Lora',serif; font-size:14px; font-weight:600; margin-right:28px; white-space:nowrap; }
+.steps { display:flex; align-items:center; gap:0; flex:1; }
+.step-pill {
+  display:flex; align-items:center; gap:7px;
+  padding:6px 14px; cursor:pointer;
+  border-radius:3px; font-size:12px; font-weight:400; color:var(--ink3);
+  transition:color .15s, background .15s;
+  white-space:nowrap;
+}
+.step-pill .num {
+  width:20px; height:20px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:600;
+  background:var(--paper3); color:var(--ink3);
+  transition:background .15s, color .15s;
+  flex-shrink:0;
+}
+.step-pill.active .num { background:var(--accent); color:#fff; }
+.step-pill.active { color:var(--ink); }
+.step-pill:hover { background:var(--paper3); color:var(--ink2); }
+.step-arrow { color:var(--rule2); font-size:13px; padding:0 2px; }
+
+/* ── SECTIONS ── */
+#main { flex:1; overflow:hidden; position:relative; }
+.step { display:none; height:100%; }
+.step.active { display:flex; }
+
+/* common layout: left sidebar + right viz */
+.left {
+  width:360px; flex-shrink:0;
+  border-right:1px solid var(--rule2);
+  padding:28px 24px;
+  display:flex; flex-direction:column; gap:16px;
+  overflow-y:auto;
+}
+.right { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; gap:12px; overflow:hidden; }
+
+.step-num { font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); margin-bottom:2px; }
+.step-title { font-family:'Lora',serif; font-size:22px; font-weight:600; line-height:1.25; color:var(--ink); }
+.step-desc { font-size:13.5px; line-height:1.75; color:var(--ink2); }
+.step-desc strong { color:var(--ink); font-weight:500; }
+
+/* ── CODE BLOCKS ── */
+.code-wrap { background:#0d1117; border-radius:6px; overflow:hidden; display:flex; flex-direction:column; }
+.code-label { font-size:10px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; padding:8px 14px; color:#8b949e; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.code-label span { width:8px; height:8px; border-radius:50%; background:#f97316; }
+.code-label span + span { background:#eab308; }
+.code-label span + span + span { background:#22c55e; }
+pre { padding:14px; font-family:'DM Mono',monospace; font-size:11.5px; line-height:1.75; color:#e6edf3; overflow-x:auto; overflow-y:auto; max-height:240px; }
+.ck { color:#ff7b72; } /* keyword */
+.cf { color:#d2a8ff; } /* class/fn */
+.cs { color:#a5d6ff; } /* string */
+.cn { color:#f0883e; } /* number */
+.cc { color:#8b949e; font-style:italic; } /* comment */
+.cv { color:#ffa657; } /* variable */
+
+/* ── CANVAS styles ── */
+canvas { display:block; border-radius:4px; }
+
+/* ── S2 sliders ── */
+.slider-grid { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:8px 10px; }
+.slider-grid label { font-size:12px; font-family:'DM Mono',monospace; color:var(--ink2); }
+.slider-grid input[type=range] { -webkit-appearance:none; height:3px; border-radius:2px; background:var(--paper3); outline:none; cursor:pointer; }
+.slider-grid input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:var(--accent); cursor:pointer; }
+.slider-grid .val { font-family:'DM Mono',monospace; font-size:11px; color:var(--accent); min-width:36px; text-align:right; }
+
+/* ── S5 layout ── */
+#s5 .right { flex-direction:row; align-items:stretch; justify-content:flex-start; gap:0; padding:0; }
+.s5-vis { flex:1; display:flex; flex-direction:column; align-items:center; padding:16px 14px; gap:10px; border-right:1px solid var(--rule2); overflow:hidden; }
+.s5-side { width:260px; flex-shrink:0; padding:16px 14px; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+
+.ctrl-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.btn { font-family:'DM Sans',sans-serif; font-size:12.5px; font-weight:500; background:var(--paper); color:var(--ink); border:1.5px solid var(--rule2); border-radius:4px; padding:6px 14px; cursor:pointer; white-space:nowrap; transition:background .1s; }
+.btn:hover { background:var(--paper3); }
+.btn.primary { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+.btn.primary:hover { background:var(--ink2); }
+.ctrl-sep { width:1px; height:20px; background:var(--rule2); flex-shrink:0; }
+.ctrl-label { font-size:11px; color:var(--ink3); white-space:nowrap; }
+input[type=range].ctrl { -webkit-appearance:none; width:72px; height:3px; border-radius:2px; background:var(--paper3); outline:none; cursor:pointer; }
+input[type=range].ctrl::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--ink); cursor:pointer; }
+.cval { font-family:'DM Mono',monospace; font-size:11px; color:var(--ink2); min-width:28px; }
+.step-badge { font-family:'DM Mono',monospace; font-size:11px; color:var(--ink3); padding:4px 9px; background:var(--paper2); border:1px solid var(--rule); border-radius:3px; }
+
+/* optimizer legend */
+.opt-legend-label { font-size:9.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3); margin-bottom:8px; }
+.opt-row { display:flex; align-items:center; gap:7px; padding:5px 7px; border-radius:3px; cursor:pointer; transition:background .1s; margin-bottom:2px; }
+.opt-row:hover { background:var(--paper2); }
+.opt-row.selected { background:var(--paper3); }
+.opt-swatch { width:3px; height:18px; border-radius:2px; flex-shrink:0; }
+.opt-check { width:13px; height:13px; accent-color:var(--accent); cursor:pointer; }
+.opt-name-text { font-size:12.5px; flex:1; }
+.opt-loss-val { font-family:'DM Mono',monospace; font-size:10.5px; color:var(--ink3); }
+
+/* ── FOOTER ── */
+#footer {
+  border-top:1.5px solid var(--rule2);
+  background:var(--paper2);
+  padding:0 28px;
+  height:52px;
+  display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0;
+}
+#footer .hint { font-size:12px; color:var(--ink3); }
+.nav-btns { display:flex; gap:8px; }
+
+/* canvas axis labels */
+.canvas-label { font-size:11px; color:var(--ink3); text-align:center; }
+.canvas-pair { display:flex; gap:14px; align-items:flex-start; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="brand">Deep Learning Fundamentals</div>
+  <div class="steps">
+    <div class="step-pill active" data-target="1"><span class="num">1</span> The Data</div>
+    <div class="step-arrow">›</div>
+    <div class="step-pill" data-target="2"><span class="num">2</span> The Model</div>
+    <div class="step-arrow">›</div>
+    <div class="step-pill" data-target="3"><span class="num">3</span> The Loss</div>
+    <div class="step-arrow">›</div>
+    <div class="step-pill" data-target="4"><span class="num">4</span> The Gradient</div>
+    <div class="step-arrow">›</div>
+    <div class="step-pill" data-target="5"><span class="num">5</span> Optimizers</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- S1: THE DATA -->
+  <div class="step active" id="step1">
+    <div class="left">
+      <div>
+        <div class="step-num">Step 1 of 5</div>
+        <div class="step-title">The Data</div>
+      </div>
+      <div class="step-desc">
+        Every deep learning problem starts with data. Here we have <strong>20 observations</strong> where each input <em>x</em> has a corresponding output <em>y</em>. The relationship is approximately <strong>y ≈ 2x + 1</strong>, but with real-world noise added.
+        <br><br>
+        In PyTorch, data lives in <strong>Tensors</strong> — efficient multi-dimensional arrays that support automatic differentiation. A <strong>DataLoader</strong> handles shuffling and batching during training.
+      </div>
+      <div class="code-wrap">
+        <div class="code-label"><span></span><span></span><span></span>&nbsp; dataset.py</div>
+        <pre><span class="ck">import</span> torch
+<span class="ck">from</span> torch.utils.data <span class="ck">import</span> (
+    TensorDataset, DataLoader
+)
+
+<span class="cc"># Raw observations (x, y = 2x + 1 + noise)</span>
+X = torch.tensor([<span class="cn">-1.9</span>, <span class="cn">-1.6</span>, ..., <span class="cn">1.8</span>])
+y = torch.tensor([<span class="cn">-2.49</span>, <span class="cn">-2.44</span>, ..., <span class="cn">4.32</span>])
+
+<span class="cc"># Wrap for mini-batching later</span>
+dataset = <span class="cf">TensorDataset</span>(
+    X.unsqueeze(<span class="cn">1</span>),
+    y.unsqueeze(<span class="cn">1</span>)
+)
+loader = <span class="cf">DataLoader</span>(
+    dataset,
+    batch_size=<span class="cn">5</span>,
+    shuffle=<span class="cn">True</span>
+)</pre>
+      </div>
+    </div>
+    <div class="right">
+      <canvas id="s1-cvs" width="520" height="370" style="border:1.5px solid var(--rule2)"></canvas>
+      <div class="canvas-label">20 training samples — the relationship is noisy but learnable</div>
+    </div>
+  </div>
+
+  <!-- S2: THE MODEL -->
+  <div class="step" id="step2">
+    <div class="left">
+      <div>
+        <div class="step-num">Step 2 of 5</div>
+        <div class="step-title">The Model</div>
+      </div>
+      <div class="step-desc">
+        A <strong>linear model</strong> has two learnable parameters: a <strong>weight</strong> <em>w</em> and a <strong>bias</strong> <em>b</em>. It predicts <em>ŷ = w·x + b</em>.
+        <br><br>
+        Use the sliders to move the line. Notice how changing <em>w</em> changes the slope, and <em>b</em> shifts it up or down. The goal of training is to find the <em>w</em> and <em>b</em> that fit the data best.
+      </div>
+      <div>
+        <div style="margin-bottom:10px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)">Adjust parameters</div>
+        <div class="slider-grid">
+          <label>w (weight)</label>
+          <input type="range" id="s2-w" min="-1" max="5" step="0.05" value="0.3">
+          <span class="val" id="s2-wv">0.30</span>
+          <label>b (bias)</label>
+          <input type="range" id="s2-b" min="-3" max="4" step="0.05" value="3.0">
+          <span class="val" id="s2-bv">3.00</span>
+        </div>
+      </div>
+      <div class="code-wrap">
+        <div class="code-label"><span></span><span></span><span></span>&nbsp; model.py</div>
+        <pre><span class="ck">import</span> torch.nn <span class="ck">as</span> nn
+
+<span class="cc"># Linear layer: y = w·x + b</span>
+model = nn.<span class="cf">Linear</span>(
+    in_features=<span class="cn">1</span>,
+    out_features=<span class="cn">1</span>
+)
+
+<span class="cc"># Access the parameters</span>
+w = model.weight  <span class="cc"># shape [1, 1]</span>
+b = model.bias    <span class="cc"># shape [1]</span>
+
+<span class="cc"># Forward pass</span>
+y_pred = model(X.unsqueeze(<span class="cn">1</span>))</pre>
+      </div>
+    </div>
+    <div class="right">
+      <canvas id="s2-cvs" width="520" height="370" style="border:1.5px solid var(--rule2)"></canvas>
+      <div class="canvas-label">Drag the sliders to move the line — try to fit the data by eye</div>
+    </div>
+  </div>
+
+  <!-- S3: THE LOSS -->
+  <div class="step" id="step3">
+    <div class="left">
+      <div>
+        <div class="step-num">Step 3 of 5</div>
+        <div class="step-title">The Loss Surface</div>
+      </div>
+      <div class="step-desc">
+        The <strong>loss function</strong> measures how wrong the model is — lower is better. For regression we use <strong>Mean Squared Error</strong>: average of squared residuals.
+        <br><br>
+        The <strong>loss surface</strong> (right) shows the loss value for every possible <em>(w, b)</em> pair — x-axis is the weight, y-axis is the bias. <strong>Click anywhere on the loss surface</strong> to jump there and watch the data plot update instantly. The <strong>white cross</strong> marks the optimal parameters where loss is minimized.
+      </div>
+      <div class="code-wrap">
+        <div class="code-label"><span></span><span></span><span></span>&nbsp; loss.py</div>
+        <pre><span class="ck">import</span> torch.nn <span class="ck">as</span> nn
+
+criterion = nn.<span class="cf">MSELoss</span>()
+
+<span class="cc"># Forward pass</span>
+y_pred = model(X.unsqueeze(<span class="cn">1</span>))
+loss   = criterion(y_pred, y.unsqueeze(<span class="cn">1</span>))
+
+<span class="cc"># Loss = (1/N) · Σ (ŷᵢ − yᵢ)²</span>
+<span class="ck">print</span>(<span class="cs">f"Loss = </span>{loss.item():<span class="cn">.4f</span>}<span class="cs">"</span>)
+
+<span class="cc"># Before training, loss is high.</span>
+<span class="cc"># After training, loss → minimum.</span></pre>
+      </div>
+    </div>
+    <div class="right">
+      <div class="canvas-pair">
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+          <canvas id="s3-scatter" width="330" height="260" style="border:1.5px solid var(--rule2)"></canvas>
+          <div class="canvas-label">Data + current model</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+          <canvas id="s3-surf" width="330" height="260" style="border:1.5px solid var(--rule2);cursor:crosshair"></canvas>
+          <div class="canvas-label">Click the loss surface to explore</div>
+        </div>
+      </div>
+      <div id="s3-loss-display" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--ink2);text-align:center">
+        L(w, b) = <span id="s3-lv" style="color:var(--accent);font-weight:500">—</span> &nbsp;|&nbsp; w = <span id="s3-wv">—</span> &nbsp; b = <span id="s3-bv">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- S4: THE GRADIENT -->
+  <div class="step" id="step4">
+    <div class="left">
+      <div>
+        <div class="step-num">Step 4 of 5</div>
+        <div class="step-title">The Gradient</div>
+      </div>
+      <div class="step-desc">
+        The <strong>gradient</strong> is a vector of partial derivatives — it points in the direction of <em>steepest increase</em> of the loss. We move in the <strong>opposite direction</strong>, scaled by the <strong>learning rate η</strong>, to reduce the loss.
+        <br><br>
+        <strong>Click on the loss surface</strong> to place yourself anywhere. The <span style="color:#e05c3a;font-weight:500">red arrow</span> is the gradient (uphill). The <span style="color:#2471a3;font-weight:500">blue arrow</span> is one gradient descent step — −η·∇L. Drag the slider to see the effect.
+      </div>
+      <div id="s4-grad-display" style="font-family:'DM Mono',monospace;font-size:12px;line-height:1.8;padding:10px 12px;background:var(--paper2);border-radius:4px;border-left:3px solid var(--rule2)">
+        ∂L/∂w = <span id="s4-gw" style="color:var(--accent)">—</span><br>
+        ∂L/∂b = <span id="s4-gb" style="color:var(--accent)">—</span><br>
+        <span style="color:var(--ink3);font-size:10.5px">gradient at current (w, b)</span>
+      </div>
+
+      <div style="background:var(--paper2);border-radius:4px;padding:12px;border-left:3px solid #2471a3">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px">Learning rate η</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" id="s4-lr" min="1" max="120" value="10" step="1"
+            style="-webkit-appearance:none;flex:1;height:3px;border-radius:2px;background:var(--paper3);outline:none;cursor:pointer">
+          <span id="s4-lr-val" style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600;color:#2471a3;min-width:44px">η=0.10</span>
+        </div>
+        <div style="margin-top:10px;font-size:11.5px;color:var(--ink3);line-height:1.65" id="s4-lr-note">
+          Moderate step — moves toward the minimum.
+        </div>
+      </div>
+      <div class="code-wrap">
+        <div class="code-label"><span></span><span></span><span></span>&nbsp; backward.py</div>
+        <pre><span class="cc"># Zero out old gradients first</span>
+model.zero_grad()
+
+<span class="cc"># Forward pass</span>
+y_pred = model(X.unsqueeze(<span class="cn">1</span>))
+loss   = criterion(y_pred, y.unsqueeze(<span class="cn">1</span>))
+
+<span class="cc"># Backward pass: compute ∂L/∂w, ∂L/∂b</span>
+loss.backward()
+
+gw = model.weight.grad  <span class="cc"># ∂L/∂w</span>
+gb = model.bias.grad    <span class="cc"># ∂L/∂b</span>
+
+<span class="cc"># Gradient descent step (manual)</span>
+<span class="ck">with</span> torch.no_grad():
+    model.weight -= lr * gw
+    model.bias   -= lr * gb</pre>
+      </div>
+    </div>
+    <div class="right">
+      <div class="canvas-pair">
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+          <canvas id="s4-scatter" width="330" height="260" style="border:1.5px solid var(--rule2)"></canvas>
+          <div class="canvas-label">Current model (w, b)</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+          <canvas id="s4-surf" width="330" height="260" style="border:1.5px solid var(--rule2);cursor:crosshair"></canvas>
+          <div class="canvas-label">Red = gradient (∇L uphill) · Blue = one step (−η·∇L)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S5: OPTIMIZERS -->
+  <div class="step" id="step5">
+    <div class="left">
+      <div>
+        <div class="step-num">Step 5 of 5</div>
+        <div class="step-title">Optimizer Comparison</div>
+      </div>
+      <div class="step-desc">
+        The <strong>same loss surface</strong> from steps 3 and 4 is shown here — w on the x-axis, b on the y-axis, minimum at the white cross. All seven optimizers start from the same bad initial parameters and race toward the optimal <em>(w≈2, b≈1)</em>.
+        <br><br>
+        Press Play to watch them descend simultaneously. Then switch to the <strong>abstract surfaces</strong> below — the Ravine and Saddle reveal differences that the near-circular regression surface hides.
+      </div>
+      <!-- Optimizer legend -->
+      <div>
+        <div class="opt-legend-label">Select optimizers</div>
+        <div id="opt-legend"></div>
+      </div>
+      <!-- Surface selector -->
+      <div>
+        <div style="font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px">Surface</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="surf-tabs">
+          <button class="btn active-surf" data-s="regression" style="font-size:11.5px;padding:5px 11px">Our Data</button>
+          <button class="btn" data-s="bowl" style="font-size:11.5px;padding:5px 11px">Bowl</button>
+          <button class="btn" data-s="ravine" style="font-size:11.5px;padding:5px 11px">Ravine</button>
+          <button class="btn" data-s="saddle" style="font-size:11.5px;padding:5px 11px">Saddle</button>
+          <button class="btn" data-s="noisy" style="font-size:11.5px;padding:5px 11px">Noisy</button>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="s5-vis">
+        <div class="ctrl-row">
+          <button class="btn primary" id="btn-play">▶  Play</button>
+          <button class="btn" id="btn-step">Step</button>
+          <button class="btn" id="btn-reset">Reset</button>
+          <span class="step-badge" id="s5-step">step 0 / 400</span>
+          <div class="ctrl-sep"></div>
+          <span class="ctrl-label">Speed</span>
+          <input type="range" class="ctrl" id="s5-speed" min="1" max="10" value="2">
+          <span class="cval" id="s5-spv">2</span>
+          <div class="ctrl-sep"></div>
+          <span class="ctrl-label" style="color:var(--accent);font-weight:500">η</span>
+          <input type="range" class="ctrl" id="s5-lr" min="1" max="20" value="5">
+          <span class="cval" id="s5-lrv" style="color:var(--accent)">0.05</span>
+        </div>
+        <canvas id="s5-surf" width="620" height="370" style="border:1.5px solid var(--rule2);cursor:crosshair"></canvas>
+        <canvas id="s5-chart" width="620" height="100" style="border:1.5px solid var(--rule2)"></canvas>
+        <div class="canvas-label" style="margin-top:-8px">Loss over training steps — click canvas to set start point</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #main -->
+
+<!-- FOOTER -->
+<div id="footer">
+  <div class="hint" id="footer-hint">Observe the data — the relationship is noisy but the trend is clear.</div>
+  <div class="nav-btns">
+    <button class="btn" id="btn-prev" disabled>← Back</button>
+    <button class="btn primary" id="btn-next">Next →</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  DATASET (y = 2x + 1 + noise, 20 points)
+// ═══════════════════════════════════════════════════════════
+const DX = [-1.9,-1.6,-1.3,-1.0,-0.8,-0.5,-0.2, 0.1, 0.3, 0.6,
+             0.9, 1.1, 1.4, 1.6, 1.9,-1.7,-0.9, 0.4, 1.2, 1.8];
+const DN = [ 0.31,-0.24, 0.42,-0.13, 0.25,-0.31, 0.18, 0.38,-0.22, 0.28,
+            -0.15, 0.21,-0.37, 0.14, 0.29,-0.19, 0.33,-0.12, 0.23,-0.28];
+const DY = DX.map((x,i)=>2*x+1+DN[i]);
+const NN = DX.length;
+
+// ── Analytical loss + gradient for the regression dataset ──
+function regLoss(w,b,idxs){
+  const ii=idxs||Array.from({length:NN},(_,i)=>i);
+  let s=0; for(const i of ii){const r=w*DX[i]+b-DY[i]; s+=r*r;} return s/ii.length;
+}
+function regGrad(w,b,idxs){
+  const ii=idxs||Array.from({length:NN},(_,i)=>i);
+  let gw=0,gb=0;
+  for(const i of ii){const r=w*DX[i]+b-DY[i]; gw+=r*DX[i]; gb+=r;}
+  return[2*gw/ii.length, 2*gb/ii.length];
+}
+
+// ── True OLS minimum (closed form) ──
+function olsMin(){
+  let sxx=0,sx=0,sxy=0,sy=0;
+  for(let i=0;i<NN;i++){sxx+=DX[i]*DX[i];sx+=DX[i];sxy+=DX[i]*DY[i];sy+=DY[i];}
+  const det=sxx*NN-sx*sx;
+  return{wstar:(sxy*NN-sy*sx)/det, bstar:(sxx*sy-sx*sxy)/det};
+}
+const {wstar,bstar}=olsMin();
+
+// ═══════════════════════════════════════════════════════════
+//  SHARED STATE (for sections 2-4)
+// ═══════════════════════════════════════════════════════════
+let curW = 0.3, curB = 3.0;
+let curLR4 = 0.10;
+
+// ═══════════════════════════════════════════════════════════
+//  SCATTER PLOT DRAWING
+// ═══════════════════════════════════════════════════════════
+const SX1=-2.3,SX2=2.3,SY1=-3.8,SY2=5.8;
+function sToC(cvs,x,y){
+  return[(x-SX1)/(SX2-SX1)*cvs.width, (1-(y-SY1)/(SY2-SY1))*cvs.height];
+}
+
+function drawScatter(cvs, w, b, showLine=false, showResiduals=false, w2=null, b2=null){
+  const ctx=cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  ctx.fillStyle='#f8f4ed'; ctx.fillRect(0,0,cvs.width,cvs.height);
+
+  const pad=30;
+  // Axes
+  const [ax0,ay0]=sToC(cvs,SX1,0), [ax1,ay1]=sToC(cvs,SX2,0);
+  const [bx0,by0]=sToC(cvs,0,SY1), [bx1,by1]=sToC(cvs,0,SY2);
+  ctx.strokeStyle='rgba(30,27,22,0.15)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(ax0,ay0); ctx.lineTo(ax1,ay1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx0,by0); ctx.lineTo(bx1,by1); ctx.stroke();
+
+  // Grid lines (subtle)
+  ctx.strokeStyle='rgba(30,27,22,0.06)'; ctx.lineWidth=0.7;
+  for(let x=-2;x<=2;x++){
+    const[px]=sToC(cvs,x,0);
+    ctx.beginPath();ctx.moveTo(px,0);ctx.lineTo(px,cvs.height);ctx.stroke();
+  }
+
+  // Axis tick labels
+  ctx.fillStyle='rgba(138,128,112,0.8)'; ctx.font='10px DM Mono,monospace'; ctx.textAlign='center';
+  for(let x=-2;x<=2;x++){const[px,py]=sToC(cvs,x,0); ctx.fillText(x,px,py+13);}
+  ctx.textAlign='right';
+  for(let y=-3;y<=5;y+=2){const[px,py]=sToC(cvs,0,y); ctx.fillText(y,px-5,py+3);}
+
+  // Axis labels
+  ctx.fillStyle='rgba(74,68,56,0.7)'; ctx.font='11px DM Sans,sans-serif'; ctx.textAlign='center';
+  ctx.fillText('x',cvs.width-10, ...sToC(cvs,0,0).slice(1));
+  ctx.save(); ctx.translate(12,...sToC(cvs,0,0).slice(1)); ctx.rotate(-Math.PI/2);
+  ctx.fillText('y',0,0); ctx.restore();
+
+  // Residuals
+  if(showResiduals){
+    ctx.strokeStyle='rgba(59,82,176,0.3)'; ctx.lineWidth=1;
+    DX.forEach((x,i)=>{
+      const yhat=w*x+b;
+      const[px,py]=sToC(cvs,x,DY[i]);
+      const[,phat]=sToC(cvs,x,yhat);
+      ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,phat);ctx.stroke();
+    });
+  }
+
+  // Model line
+  if(showLine){
+    const x1=SX1, y1=w*x1+b, x2=SX2, y2=w*x2+b;
+    const[lx1,ly1]=sToC(cvs,x1,y1);
+    const[lx2,ly2]=sToC(cvs,x2,y2);
+    ctx.strokeStyle='#3b52b0'; ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(lx1,ly1);ctx.lineTo(lx2,ly2);ctx.stroke();
+    const mid=sToC(cvs,1,w*1+b);
+    ctx.fillStyle='#3b52b0'; ctx.font='11px DM Mono,monospace'; ctx.textAlign='left';
+    ctx.fillText(`ŷ = ${w.toFixed(2)}x + ${b.toFixed(2)}`,mid[0]+6,mid[1]-5);
+  }
+
+  // Projected model line after one gradient step (dashed blue)
+  if(w2!==null && b2!==null){
+    const x1=SX1, y1=w2*x1+b2, x2=SX2, y2=w2*x2+b2;
+    const[lx1,ly1]=sToC(cvs,x1,y1);
+    const[lx2,ly2]=sToC(cvs,x2,y2);
+    ctx.save();
+    ctx.strokeStyle='rgba(36,113,163,0.55)'; ctx.lineWidth=1.5;
+    ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(lx1,ly1);ctx.lineTo(lx2,ly2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(36,113,163,0.7)'; ctx.font='10px DM Mono,monospace'; ctx.textAlign='left';
+    const mid2=sToC(cvs,1.5,w2*1.5+b2);
+    ctx.fillText('after step',mid2[0]+4,mid2[1]+12);
+    ctx.restore();
+  }
+
+  // Data points
+  DX.forEach((x,i)=>{
+    const[px,py]=sToC(cvs,x,DY[i]);
+    ctx.fillStyle='#1e1b16';
+    ctx.beginPath();ctx.arc(px,py,4.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='white';
+    ctx.beginPath();ctx.arc(px,py,2.5,0,Math.PI*2);ctx.fill();
+  });
+
+  // Legend
+  if(showLine){
+    const lX=14, lY=cvs.height-16;
+    ctx.fillStyle='rgba(248,244,237,0.9)';
+    ctx.fillRect(lX-4,lY-13,130,18);
+    ctx.fillStyle='#1e1b16'; ctx.beginPath();ctx.arc(lX+5,lY-4,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='white'; ctx.beginPath();ctx.arc(lX+5,lY-4,2.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(74,68,56,0.8)'; ctx.font='10px DM Sans,sans-serif'; ctx.textAlign='left';
+    ctx.fillText('data',lX+14,lY-1);
+    ctx.strokeStyle='#3b52b0'; ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(lX+50,lY-5);ctx.lineTo(lX+68,lY-5);ctx.stroke();
+    ctx.fillText('model',lX+72,lY-1);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOSS SURFACE DRAWING
+// ═══════════════════════════════════════════════════════════
+const WMIN=0,WMAX=4.2,BMIN=-1.5,BMAX=3.5;
+
+function cmap(t){
+  t=Math.max(0,Math.min(1,t));
+  const S=[[0,[28,16,8]],[.18,[95,18,95]],[.38,[180,40,28]],[.62,[205,108,18]],[.82,[225,188,55]],[1,[245,238,155]]];
+  let i=0; while(i<S.length-2&&t>=S[i+1][0])i++;
+  const f=(t-S[i][0])/(S[i+1][0]-S[i][0]),a=S[i][1],b=S[i+1][1];
+  return[Math.round(a[0]+f*(b[0]-a[0])),Math.round(a[1]+f*(b[1]-a[1])),Math.round(a[2]+f*(b[2]-a[2]))];
+}
+
+function lToC(cvs,w,b){
+  return[(w-WMIN)/(WMAX-WMIN)*cvs.width, (1-(b-BMIN)/(BMAX-BMIN))*cvs.height];
+}
+function cToL(cvs,px,py){
+  return[WMIN+(px/cvs.width)*(WMAX-WMIN), BMIN+(1-py/cvs.height)*(BMAX-BMIN)];
+}
+
+// Pre-rendered background cache
+const bgCache={};
+
+function buildLossBg(cvs){
+  const key=`${cvs.width}x${cvs.height}`;
+  if(bgCache[key])return bgCache[key];
+  const offscreen=document.createElement('canvas');
+  offscreen.width=cvs.width; offscreen.height=cvs.height;
+  const oc=offscreen.getContext('2d');
+  const img=oc.createImageData(cvs.width,cvs.height),d=img.data;
+  // Compute z range first
+  let zMin=Infinity,zMax=-Infinity;
+  for(let py=0;py<cvs.height;py+=4) for(let px=0;px<cvs.width;px+=4){
+    const[w,b]=cToL(cvs,px,py);
+    const z=regLoss(w,b);
+    if(z<zMin)zMin=z; if(z>zMax)zMax=z;
+  }
+  for(let py=0;py<cvs.height;py++) for(let px=0;px<cvs.width;px++){
+    const[w,b]=cToL(cvs,px,py);
+    const z=regLoss(w,b);
+    const t=(z-zMin)/(zMax-zMin);
+    const[r,g,bl]=cmap(t),i=(py*cvs.width+px)*4;
+    d[i]=r;d[i+1]=g;d[i+2]=bl;d[i+3]=255;
+  }
+  oc.putImageData(img,0,0);
+  // Contours
+  const GW=120,GH=100,grid=[];
+  for(let j=0;j<=GH;j++){grid[j]=[];for(let i=0;i<=GW;i++){
+    const w=WMIN+(i/GW)*(WMAX-WMIN),b=BMIN+(j/GH)*(BMAX-BMIN);
+    grid[j][i]=regLoss(w,b);
+  }}
+  const lvCount=8,lvs=[];
+  for(let i=0;i<lvCount;i++)lvs.push(zMin+(i/(lvCount-1))*(zMax-zMin));
+  const g2c=(gi,gj)=>[(gi/GW)*cvs.width,(1-gj/GH)*cvs.height];
+  const lp=(i0,j0,i1,j1,v0,v1,lv)=>{const f=(lv-v0)/(v1-v0);return g2c(i0+f*(i1-i0),j0+f*(j1-j0));};
+  oc.strokeStyle='rgba(255,255,255,0.22)';oc.lineWidth=0.8;oc.beginPath();
+  for(const lv of lvs) for(let j=0;j<GH;j++) for(let i=0;i<GW;i++){
+    const v00=grid[j][i],v10=grid[j][i+1],v01=grid[j+1][i],v11=grid[j+1][i+1];
+    const a=v00>=lv,b=v10>=lv,c=v01>=lv,dd=v11>=lv,pts=[];
+    if(a!==b)pts.push(lp(i,j,i+1,j,v00,v10,lv));
+    if(b!==dd)pts.push(lp(i+1,j,i+1,j+1,v10,v11,lv));
+    if(c!==dd)pts.push(lp(i,j+1,i+1,j+1,v01,v11,lv));
+    if(a!==c)pts.push(lp(i,j,i,j+1,v00,v01,lv));
+    if(pts.length>=2){oc.moveTo(pts[0][0],pts[0][1]);oc.lineTo(pts[1][0],pts[1][1]);
+    if(pts.length===4){oc.moveTo(pts[2][0],pts[2][1]);oc.lineTo(pts[3][0],pts[3][1]);}}
+  }
+  oc.stroke();
+  // Axis labels
+  oc.fillStyle='rgba(255,255,255,0.7)'; oc.font='10px DM Mono,monospace';
+  oc.textAlign='center'; oc.fillText('weight w →', cvs.width/2, cvs.height-4);
+  oc.save(); oc.translate(10,cvs.height/2); oc.rotate(-Math.PI/2);
+  oc.fillText('bias b →',0,0); oc.restore();
+  bgCache[key]=offscreen;
+  return offscreen;
+}
+
+function drawLossMarker(cvs,w,b,showMin=true){
+  const ctx=cvs.getContext('2d');
+  if(showMin){
+    const[mx,my]=lToC(cvs,wstar,bstar);
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.65)'; ctx.lineWidth=1.5;
+    const s=7;
+    ctx.beginPath();ctx.moveTo(mx-s,my);ctx.lineTo(mx+s,my);ctx.moveTo(mx,my-s);ctx.lineTo(mx,my+s);ctx.stroke();
+    ctx.beginPath();ctx.arc(mx,my,3.5,0,Math.PI*2);ctx.stroke();
+    ctx.restore();
+  }
+  // Current marker
+  const[px,py]=lToC(cvs,w,b);
+  ctx.fillStyle='white'; ctx.beginPath();ctx.arc(px,py,8,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#3b52b0'; ctx.beginPath();ctx.arc(px,py,5.5,0,Math.PI*2);ctx.fill();
+}
+
+// Arrow helper
+function drawArrow(ctx, x1, y1, x2, y2, color, width, dashed=false){
+  ctx.save();
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.lineCap='round';
+  if(dashed) ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.setLineDash([]);
+  const ang=Math.atan2(y2-y1,x2-x1), hl=9;
+  ctx.fillStyle=color; ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-hl*Math.cos(ang-0.4),y2-hl*Math.sin(ang-0.4));
+  ctx.lineTo(x2-hl*Math.cos(ang+0.4),y2-hl*Math.sin(ang+0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawGradArrow(cvs, w, b, lr=0.1){
+  const [gw,gb]=regGrad(w,b);
+  const [px,py]=lToC(cvs,w,b);
+  const ctx=cvs.getContext('2d');
+  const wPx=cvs.width/(WMAX-WMIN);   // canvas px per unit w
+  const hPx=cvs.height/(BMAX-BMIN);  // canvas px per unit b
+
+  // ── Red arrow: gradient direction (normalized visually to max 65px) ──
+  const dx_g= gw*wPx, dy_g=-gb*hPx;  // raw gradient in canvas px
+  const gLen=Math.sqrt(dx_g*dx_g+dy_g*dy_g)||1;
+  const normScale=Math.min(65/gLen,1);
+  const ex=px+dx_g*normScale, ey=py+dy_g*normScale;
+  drawArrow(ctx,px,py,ex,ey,'#e05c3a',2.5);
+  ctx.save(); ctx.fillStyle='#e05c3a'; ctx.font='bold 10px DM Sans,sans-serif';
+  ctx.textAlign='left'; ctx.fillText('∇L',ex+5,ey-3); ctx.restore();
+
+  // ── Blue arrow: actual descent step −η·∇L (true scale) ──
+  const nw=w-lr*gw, nb=b-lr*gb;
+  const inBounds=(nw>=WMIN&&nw<=WMAX&&nb>=BMIN&&nb<=BMAX);
+  const nwC=Math.max(WMIN,Math.min(WMAX,nw));
+  const nbC=Math.max(BMIN,Math.min(BMAX,nb));
+  const [npx,npy]=lToC(cvs,nwC,nbC);
+  drawArrow(ctx,px,py,npx,npy,'#2471a3',2.5,!inBounds);
+  ctx.save(); ctx.fillStyle='#2471a3'; ctx.font='bold 10px DM Sans,sans-serif';
+  ctx.textAlign='left'; ctx.fillText('−η·∇L',npx+5,npy-3); ctx.restore();
+
+  // Landing dot
+  ctx.save();
+  ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(npx,npy,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#2471a3'; ctx.beginPath(); ctx.arc(npx,npy,5,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // Overshoot warning
+  if(!inBounds){
+    ctx.save(); ctx.fillStyle='rgba(36,113,163,0.75)';
+    ctx.font='10px DM Sans,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('step overshoots visible area',cvs.width/2,cvs.height-6);
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECTION 1 INIT
+// ═══════════════════════════════════════════════════════════
+function initS1(){
+  drawScatter(document.getElementById('s1-cvs'),0,0,false,false);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECTION 2 INIT
+// ═══════════════════════════════════════════════════════════
+function initS2(){
+  const cvs=document.getElementById('s2-cvs');
+  const wSlider=document.getElementById('s2-w');
+  const bSlider=document.getElementById('s2-b');
+  const wVal=document.getElementById('s2-wv');
+  const bVal=document.getElementById('s2-bv');
+  function update(){
+    curW=parseFloat(wSlider.value);curB=parseFloat(bSlider.value);
+    wVal.textContent=curW.toFixed(2);bVal.textContent=curB.toFixed(2);
+    drawScatter(cvs,curW,curB,true,false);
+  }
+  wSlider.addEventListener('input',update);
+  bSlider.addEventListener('input',update);
+  update();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECTION 3 INIT
+// ═══════════════════════════════════════════════════════════
+function initS3(){
+  const scat=document.getElementById('s3-scatter');
+  const surf=document.getElementById('s3-surf');
+  const lvEl=document.getElementById('s3-lv');
+  const wvEl=document.getElementById('s3-wv');
+  const bvEl=document.getElementById('s3-bv');
+
+  const bg=buildLossBg(surf);
+
+  function redraw(){
+    drawScatter(scat,curW,curB,true,true);
+    surf.getContext('2d').drawImage(bg,0,0);
+    drawLossMarker(surf,curW,curB,true);
+    const l=regLoss(curW,curB);
+    lvEl.textContent=l.toFixed(4);
+    wvEl.textContent=curW.toFixed(2);
+    bvEl.textContent=curB.toFixed(2);
+  }
+
+  surf.addEventListener('click',e=>{
+    const rect=surf.getBoundingClientRect();
+    const px=(e.clientX-rect.left)*(surf.width/rect.width);
+    const py=(e.clientY-rect.top)*(surf.height/rect.height);
+    [curW,curB]=cToL(surf,px,py);
+    redraw();
+  });
+
+  redraw();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECTION 4 INIT
+// ═══════════════════════════════════════════════════════════
+function initS4(){
+  const scat=document.getElementById('s4-scatter');
+  const surf=document.getElementById('s4-surf');
+  const gwEl=document.getElementById('s4-gw');
+  const gbEl=document.getElementById('s4-gb');
+  const lrSlider=document.getElementById('s4-lr');
+  const lrVal=document.getElementById('s4-lr-val');
+  const lrNote=document.getElementById('s4-lr-note');
+  const bg=buildLossBg(surf);
+
+  function lrNote_(lr){
+    if(lr<0.03) return 'Very small — tiny step, very slow convergence.';
+    if(lr<0.08) return 'Small step — safe but slow.';
+    if(lr<0.20) return 'Moderate step — moves toward the minimum.';
+    if(lr<0.50) return 'Large step — getting close to the edge.';
+    return 'Too large — step overshoots the minimum!';
+  }
+
+  function redraw(){
+    const[gw,gb]=regGrad(curW,curB);
+    const nw=curW-curLR4*gw, nb=curB-curLR4*gb;
+    drawScatter(scat,curW,curB,true,true,nw,nb);
+    surf.getContext('2d').drawImage(bg,0,0);
+    drawLossMarker(surf,curW,curB,true);
+    drawGradArrow(surf,curW,curB,curLR4);
+    gwEl.textContent=gw.toFixed(4);
+    gbEl.textContent=gb.toFixed(4);
+  }
+
+  lrSlider.addEventListener('input',e=>{
+    curLR4=parseInt(e.target.value)/100;
+    lrVal.textContent='η='+curLR4.toFixed(2);
+    lrNote.textContent=lrNote_(curLR4);
+    redraw();
+  });
+
+  surf.addEventListener('click',e=>{
+    const rect=surf.getBoundingClientRect();
+    const px=(e.clientX-rect.left)*(surf.width/rect.width);
+    const py=(e.clientY-rect.top)*(surf.height/rect.height);
+    [curW,curB]=cToL(surf,px,py);
+    redraw();
+  });
+
+  redraw();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECTION 5 — ABSTRACT SURFACES + 7 OPTIMIZERS
+// ═══════════════════════════════════════════════════════════
+const RANGE5=2.6, MAX_STEPS=400;
+const W5=620,H5=370;
+
+const ABSTRACT_SURFACES={
+  regression:{
+    fn:regLoss, grad:regGrad,
+    start:[0.3,3.0], zMin:0, zMax:30,
+    levels:[], hasMin:true, minPos:()=>[wstar,bstar],
+    xMin:0,xMax:4.2,yMin:-1.5,yMax:3.5,
+    xLabel:'weight  w →', yLabel:'bias  b →'
+  },
+  bowl:{
+    fn:(x,y)=>x*x+y*y, grad:(x,y)=>[2*x,2*y],
+    start:[-2.0,1.6],zMin:0,zMax:10,
+    levels:[0.3,0.8,1.5,3,5,7.5],hasMin:true, minPos:()=>[0,0],
+    xMin:-2.6,xMax:2.6,yMin:-2.6,yMax:2.6,
+    xLabel:'x →', yLabel:'y →'
+  },
+  ravine:{
+    fn:(x,y)=>x*x+20*y*y, grad:(x,y)=>[2*x,40*y],
+    start:[-2.2,0.45],zMin:0,zMax:12,
+    levels:[0.3,0.8,2,4,7,10],hasMin:true, minPos:()=>[0,0],
+    xMin:-2.6,xMax:2.6,yMin:-2.6,yMax:2.6,
+    xLabel:'x →', yLabel:'y →'
+  },
+  saddle:{
+    fn:(x,y)=>x*x-y*y, grad:(x,y)=>[2*x,-2*y],
+    start:[1.0,0.12],zMin:-7,zMax:7,
+    levels:[-5,-3,-1,1,3,5],hasMin:false, minPos:()=>[0,0],
+    xMin:-2.6,xMax:2.6,yMin:-2.6,yMax:2.6,
+    xLabel:'x →', yLabel:'y →'
+  },
+  noisy:{
+    fn:(x,y)=>x*x+y*y+2*Math.sin(4*x)*Math.sin(4*y),
+    grad:(x,y)=>[2*x+8*Math.cos(4*x)*Math.sin(4*y),2*y+8*Math.sin(4*x)*Math.cos(4*y)],
+    start:[-2.0,1.6],zMin:-1,zMax:10,
+    levels:[0,1,2,3,5,7.5],hasMin:true, minPos:()=>[0,0],
+    xMin:-2.6,xMax:2.6,yMin:-2.6,yMax:2.6,
+    xLabel:'x →', yLabel:'y →'
+  }
+};
+
+const OPTIMIZERS=[
+  { key:'sgd', name:'SGD', color:'#c0392b', lrM:1.0,
+    defaults:{lrM:1.0},
+    init:()=>({}),
+    step(st,p,g,lr){return[p[0]-lr*g[0],p[1]-lr*g[1]];},
+    code:`import torch.optim as optim
+
+# Stochastic Gradient Descent
+optimizer = optim.SGD(
+    model.parameters(),
+    lr=0.05
+)
+
+# Training loop
+for epoch in range(epochs):
+    optimizer.zero_grad()
+    loss = criterion(model(X), y)
+    loss.backward()
+    optimizer.step()`
+  },
+  { key:'mbsgd', name:'Mini-batch SGD', color:'#d35400', lrM:1.0, batchSize:5,
+    defaults:{lrM:1.0, batchSize:5},
+    init:()=>({}),
+    step(st,p,g,lr){
+      if(s5surf==='regression'){
+        const bs=this.batchSize||5;
+        const idxs=[];
+        while(idxs.length<Math.min(bs,NN)){const r=Math.floor(Math.random()*NN);if(!idxs.includes(r))idxs.push(r);}
+        const[gw,gb]=regGrad(p[0],p[1],idxs);
+        return[p[0]-lr*gw,p[1]-lr*gb];
+      }
+      const noise=0.4;
+      return[p[0]-lr*(g[0]+(Math.random()-0.5)*noise*Math.abs(g[0]+0.5)),
+             p[1]-lr*(g[1]+(Math.random()-0.5)*noise*Math.abs(g[1]+0.5))];
+    },
+    code:`from torch.utils.data import DataLoader
+
+# Mini-batch SGD — only sees batch_size
+# samples per gradient step
+loader = DataLoader(dataset,
+    batch_size=5, shuffle=True)
+
+optimizer = optim.SGD(
+    model.parameters(), lr=0.05
+)
+
+for X_batch, y_batch in loader:
+    optimizer.zero_grad()
+    loss = criterion(model(X_batch), y_batch)
+    loss.backward()
+    optimizer.step()`
+  },
+  { key:'mom', name:'Momentum', color:'#b7950b', lrM:1.0, b:0.9,
+    defaults:{lrM:1.0, b:0.9},
+    init:()=>({v:[0,0]}),
+    step(st,p,g,lr){
+      st.v[0]=this.b*st.v[0]+(1-this.b)*g[0];
+      st.v[1]=this.b*st.v[1]+(1-this.b)*g[1];
+      return[p[0]-lr*st.v[0],p[1]-lr*st.v[1]];
+    },
+    code:`# SGD with Momentum
+optimizer = optim.SGD(
+    model.parameters(),
+    lr=0.05,
+    momentum=0.9
+)
+
+# Update rule:
+# v  <- momentum * v + (1-momentum) * g
+# theta <- theta - lr * v`
+  },
+  { key:'rms', name:'RMSProp', color:'#1a7a4a', lrM:1.5, rho:0.9, eps:1e-8,
+    defaults:{lrM:1.5, rho:0.9},
+    init:()=>({s:[0,0]}),
+    step(st,p,g,lr){
+      st.s[0]=this.rho*st.s[0]+(1-this.rho)*g[0]*g[0];
+      st.s[1]=this.rho*st.s[1]+(1-this.rho)*g[1]*g[1];
+      return[p[0]-lr*g[0]/Math.sqrt(st.s[0]+this.eps),
+             p[1]-lr*g[1]/Math.sqrt(st.s[1]+this.eps)];
+    },
+    code:`# RMSProp — adapts lr per parameter
+optimizer = optim.RMSprop(
+    model.parameters(),
+    lr=0.075,
+    alpha=0.9
+)
+
+# Update rule:
+# s <- alpha*s + (1-alpha)*g^2
+# theta <- theta - lr * g / sqrt(s + eps)`
+  },
+  { key:'adam', name:'Adam', color:'#2471a3', lrM:1.5, b1:0.9, b2:0.999, eps:1e-8,
+    defaults:{lrM:1.5, b1:0.9, b2:0.999},
+    init:()=>({m:[0,0],v:[0,0],t:0}),
+    step(st,p,g,lr){
+      st.t++;
+      st.m[0]=this.b1*st.m[0]+(1-this.b1)*g[0];st.m[1]=this.b1*st.m[1]+(1-this.b1)*g[1];
+      st.v[0]=this.b2*st.v[0]+(1-this.b2)*g[0]*g[0];st.v[1]=this.b2*st.v[1]+(1-this.b2)*g[1]*g[1];
+      const b1t=Math.pow(this.b1,st.t),b2t=Math.pow(this.b2,st.t);
+      const mh0=st.m[0]/(1-b1t),mh1=st.m[1]/(1-b1t);
+      const vh0=st.v[0]/(1-b2t),vh1=st.v[1]/(1-b2t);
+      return[p[0]-lr*mh0/Math.sqrt(vh0+this.eps),p[1]-lr*mh1/Math.sqrt(vh1+this.eps)];
+    },
+    code:`# Adam — momentum + adaptive lr
+optimizer = optim.Adam(
+    model.parameters(),
+    lr=0.001,
+    betas=(0.9, 0.999)
+)
+
+# Bias-corrected moments:
+# m_hat = m / (1 - beta1^t)
+# v_hat = v / (1 - beta2^t)
+# theta <- theta - lr * m_hat / sqrt(v_hat + eps)`
+  },
+  { key:'adamw', name:'AdamW', color:'#7d3c98', lrM:1.5, b1:0.9, b2:0.999, eps:1e-8, wd:0.01,
+    defaults:{lrM:1.5, b1:0.9, b2:0.999, wd:0.01},
+    init:()=>({m:[0,0],v:[0,0],t:0}),
+    step(st,p,g,lr){
+      st.t++;
+      st.m[0]=this.b1*st.m[0]+(1-this.b1)*g[0];st.m[1]=this.b1*st.m[1]+(1-this.b1)*g[1];
+      st.v[0]=this.b2*st.v[0]+(1-this.b2)*g[0]*g[0];st.v[1]=this.b2*st.v[1]+(1-this.b2)*g[1]*g[1];
+      const b1t=Math.pow(this.b1,st.t),b2t=Math.pow(this.b2,st.t);
+      const mh0=st.m[0]/(1-b1t),mh1=st.m[1]/(1-b1t);
+      const vh0=st.v[0]/(1-b2t),vh1=st.v[1]/(1-b2t);
+      return[p[0]-lr*(mh0/Math.sqrt(vh0+this.eps)+this.wd*p[0]),
+             p[1]-lr*(mh1/Math.sqrt(vh1+this.eps)+this.wd*p[1])];
+    },
+    code:`# AdamW — Adam + decoupled weight decay
+optimizer = optim.AdamW(
+    model.parameters(),
+    lr=0.001,
+    betas=(0.9, 0.999),
+    weight_decay=0.01
+)
+
+# Decoupled update:
+# theta <- theta*(1-wd) - lr * m_hat/sqrt(v_hat+eps)
+# (weight decay is NOT part of the gradient)`
+  },
+  { key:'muon', name:'Muon', color:'#0e7a8a', lrM:0.7, beta:0.95,
+    defaults:{lrM:0.7, beta:0.95},
+    init:()=>({m:[0,0]}),
+    step(st,p,g,lr){
+      st.m[0]=this.beta*st.m[0]+g[0];st.m[1]=this.beta*st.m[1]+g[1];
+      const uw=g[0]+this.beta*st.m[0],ub=g[1]+this.beta*st.m[1];
+      const norm=Math.sqrt(uw*uw+ub*ub)||1e-8;
+      return[p[0]-lr*uw/norm,p[1]-lr*ub/norm];
+    },
+    code:`# Muon — not in PyTorch standard
+# pip install muon
+from muon import Muon
+
+optimizer = Muon(
+    model.parameters(),
+    lr=0.02,
+    momentum=0.95
+)
+
+# Nesterov momentum + orthogonalize:
+# m  <- beta*m + g
+# u  <- g + beta*m   (Nesterov lookahead)
+# theta <- theta - lr * u / ||u||`
+  }
+];
+
+// Build optimizer legend
+function buildLegend(){
+  const container=document.getElementById('opt-legend');
+  container.innerHTML='';
+  OPTIMIZERS.forEach(opt=>{
+    const row=document.createElement('div');
+    row.className='opt-row';
+    row.dataset.key=opt.key;
+    row.innerHTML=`
+      <input type="checkbox" class="opt-check" id="ck-${opt.key}" checked>
+      <span class="opt-swatch" style="background:${opt.color}"></span>
+      <span class="opt-name-text">${opt.name}</span>
+      <span class="opt-loss-val" id="lv-${opt.key}">—</span>`;
+    container.appendChild(row);
+    document.getElementById('opt-legend').addEventListener('change',e=>{
+      if(e.target.id==='ck-'+opt.key){renderS5();}
+    });
+  });
+}
+
+// S5 state
+let s5surf='regression', s5paths={}, s5states={}, s5lossH={}, s5step=0;
+let s5anim=false, s5raf=null, s5frame=0, s5baseLR=0.05;
+const s5cvs=()=>document.getElementById('s5-surf');
+const s5lcvs=()=>document.getElementById('s5-chart');
+
+// Surface-aware coordinate transforms
+function s5toC(x,y){
+  const surf=ABSTRACT_SURFACES[s5surf];
+  return[(x-surf.xMin)/(surf.xMax-surf.xMin)*W5,
+         (1-(y-surf.yMin)/(surf.yMax-surf.yMin))*H5];
+}
+function s5fromC(px,py){
+  const surf=ABSTRACT_SURFACES[s5surf];
+  return[surf.xMin+(px/W5)*(surf.xMax-surf.xMin),
+         surf.yMin+(1-py/H5)*(surf.yMax-surf.yMin)];
+}
+
+// Abstract surface bg cache — surface-aware coordinate ranges
+const absBgCache={};
+function buildAbsBg(key){
+  if(absBgCache[key])return absBgCache[key];
+  const surf=ABSTRACT_SURFACES[key];
+  const W=W5,H=H5;
+  const oc=document.createElement('canvas');oc.width=W;oc.height=H;
+  const octx=oc.getContext('2d');
+  const img=octx.createImageData(W,H),d=img.data;
+  // For regression, auto-compute z range from actual data
+  let zMin=surf.zMin,zMax=surf.zMax;
+  if(key==='regression'){
+    zMin=Infinity;zMax=-Infinity;
+    for(let py=0;py<H;py+=4) for(let px=0;px<W;px+=4){
+      const xv=surf.xMin+(px/W)*(surf.xMax-surf.xMin);
+      const yv=surf.yMin+(1-py/H)*(surf.yMax-surf.yMin);
+      const z=surf.fn(xv,yv);if(z<zMin)zMin=z;if(z>zMax)zMax=z;
+    }
+  }
+  for(let py=0;py<H;py++) for(let px=0;px<W;px++){
+    const xv=surf.xMin+(px/W)*(surf.xMax-surf.xMin);
+    const yv=surf.yMin+(1-py/H)*(surf.yMax-surf.yMin);
+    const z=surf.fn(xv,yv),t=(z-zMin)/(zMax-zMin);
+    const[r,g,b]=cmap(t),i=(py*W+px)*4;
+    d[i]=r;d[i+1]=g;d[i+2]=b;d[i+3]=255;
+  }
+  octx.putImageData(img,0,0);
+  // Contours
+  const GW=150,GH=120,grid=[];
+  for(let j=0;j<=GH;j++){grid[j]=[];for(let i=0;i<=GW;i++){
+    const xv=surf.xMin+(i/GW)*(surf.xMax-surf.xMin);
+    const yv=surf.yMin+(j/GH)*(surf.yMax-surf.yMin);
+    grid[j][i]=surf.fn(xv,yv);
+  }}
+  const g2c=(gi,gj)=>[(gi/GW)*W,(1-gj/GH)*H];
+  // For regression, auto-pick contour levels
+  let levels=surf.levels;
+  if(key==='regression'||!levels.length){
+    levels=[];const cnt=8;
+    for(let i=0;i<cnt;i++)levels.push(zMin+(i/(cnt-1))*(zMax-zMin));
+  }
+  const lp5=(i0,j0,i1,j1,v0,v1,lv)=>{const f=(lv-v0)/(v1-v0);return g2c(i0+f*(i1-i0),j0+f*(j1-j0));};
+  octx.strokeStyle='rgba(255,255,255,0.2)';octx.lineWidth=0.8;octx.beginPath();
+  for(const lv of levels) for(let j=0;j<GH;j++) for(let i=0;i<GW;i++){
+    const v00=grid[j][i],v10=grid[j][i+1],v01=grid[j+1][i],v11=grid[j+1][i+1];
+    const a=v00>=lv,b=v10>=lv,c=v01>=lv,dd=v11>=lv,pts=[];
+    if(a!==b)pts.push(lp5(i,j,i+1,j,v00,v10,lv));
+    if(b!==dd)pts.push(lp5(i+1,j,i+1,j+1,v10,v11,lv));
+    if(c!==dd)pts.push(lp5(i,j+1,i+1,j+1,v01,v11,lv));
+    if(a!==c)pts.push(lp5(i,j,i,j+1,v00,v01,lv));
+    if(pts.length>=2){octx.moveTo(pts[0][0],pts[0][1]);octx.lineTo(pts[1][0],pts[1][1]);
+    if(pts.length===4){octx.moveTo(pts[2][0],pts[2][1]);octx.lineTo(pts[3][0],pts[3][1]);}}
+  }
+  octx.stroke();
+  // Axis labels
+  octx.fillStyle='rgba(255,255,255,0.65)';octx.font='10.5px DM Mono,monospace';
+  octx.textAlign='center';octx.fillText(surf.xLabel||'x →',W/2,H-5);
+  octx.save();octx.translate(13,H/2);octx.rotate(-Math.PI/2);
+  octx.fillText(surf.yLabel||'y →',0,0);octx.restore();
+  absBgCache[key]=oc;
+  return oc;
+}
+
+function absToC(x,y){return[(x+RANGE5)/(2*RANGE5)*W5,(RANGE5-y)/(2*RANGE5)*H5];}
+function cToAbs(px,py){return[-RANGE5+(px/W5)*(2*RANGE5),RANGE5-(py/H5)*(2*RANGE5)];}
+
+function s5initOpts(start){
+  const surf=ABSTRACT_SURFACES[s5surf];
+  const s=start||[...surf.start];
+  s5paths={};s5states={};s5lossH={};s5step=0;s5frame=0;
+  OPTIMIZERS.forEach(opt=>{
+    s5paths[opt.key]=[[...s]];
+    s5states[opt.key]=opt.init();
+    s5lossH[opt.key]=[surf.fn(s[0],s[1])];
+  });
+  document.getElementById('s5-step').textContent='step 0 / '+MAX_STEPS;
+}
+
+function getLR5(opt){
+  return opt.overrideLR!==undefined ? opt.overrideLR : s5baseLR*opt.lrM;
+}
+
+function s5doStep(){
+  if(s5step>=MAX_STEPS)return;
+  const surf=ABSTRACT_SURFACES[s5surf];
+  OPTIMIZERS.forEach(opt=>{
+    const ck=document.getElementById('ck-'+opt.key);
+    if(!ck.checked)return;
+    const pos=s5paths[opt.key][s5paths[opt.key].length-1];
+    const xRange=surf.xMax-surf.xMin, yRange=surf.yMax-surf.yMin;
+    if(pos[0]<surf.xMin-xRange*0.2||pos[0]>surf.xMax+xRange*0.2||
+       pos[1]<surf.yMin-yRange*0.2||pos[1]>surf.yMax+yRange*0.2){
+      s5lossH[opt.key].push(s5lossH[opt.key][s5lossH[opt.key].length-1]);return;
+    }
+    const g=surf.grad(pos[0],pos[1]);
+    const np=opt.step(s5states[opt.key],pos,g,getLR5(opt));
+    s5paths[opt.key].push(np);
+    s5lossH[opt.key].push(surf.fn(np[0],np[1]));
+  });
+  s5step++;
+}
+
+function renderS5(){
+  const cvs=s5cvs();
+  const ctx=cvs.getContext('2d');
+  ctx.drawImage(buildAbsBg(s5surf),0,0);
+  // Min marker — uses surface-specific minimum position
+  if(ABSTRACT_SURFACES[s5surf].hasMin){
+    const mp=ABSTRACT_SURFACES[s5surf].minPos();
+    const[mx,my]=s5toC(mp[0],mp[1]);
+    ctx.save();ctx.strokeStyle='rgba(255,255,255,0.65)';ctx.lineWidth=1.5;
+    const s=8;ctx.beginPath();ctx.moveTo(mx-s,my);ctx.lineTo(mx+s,my);ctx.moveTo(mx,my-s);ctx.lineTo(mx,my+s);ctx.stroke();
+    ctx.beginPath();ctx.arc(mx,my,3.5,0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
+  OPTIMIZERS.forEach(opt=>{
+    const ck=document.getElementById('ck-'+opt.key);
+    if(!ck||!ck.checked)return;
+    const pts=s5paths[opt.key];if(!pts||pts.length<2)return;
+    const n=pts.length, col=opt.color;
+    ctx.save();ctx.lineJoin='round';ctx.lineCap='round';
+    // Faded tail
+    if(n>50){
+      ctx.globalAlpha=0.18;ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();
+      const[sx,sy]=s5toC(...pts[0]);ctx.moveTo(sx,sy);
+      for(let i=1;i<=n-50;i++){const[px,py]=s5toC(...pts[i]);ctx.lineTo(px,py);}
+      ctx.stroke();
+    }
+    // Recent path
+    ctx.globalAlpha=0.92;ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();
+    const si=Math.max(0,n-50);const[s0x,s0y]=s5toC(...pts[si]);ctx.moveTo(s0x,s0y);
+    for(let i=si+1;i<n;i++){const[px,py]=s5toC(...pts[i]);ctx.lineTo(px,py);}
+    ctx.stroke();
+    // Head
+    const[hx,hy]=s5toC(...pts[n-1]);
+    ctx.globalAlpha=1;ctx.fillStyle='white';ctx.beginPath();ctx.arc(hx,hy,7,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(hx,hy,5,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    // Loss label
+    const lv=document.getElementById('lv-'+opt.key);
+    if(lv&&s5paths[opt.key].length>0){
+      const pos=s5paths[opt.key][s5paths[opt.key].length-1];
+      lv.textContent='L='+ABSTRACT_SURFACES[s5surf].fn(pos[0],pos[1]).toFixed(3);
+    }
+  });
+  renderS5Chart();
+  document.getElementById('s5-step').textContent='step '+s5step+' / '+MAX_STEPS;
+}
+
+function renderS5Chart(){
+  const lcvs=s5lcvs(); if(!lcvs)return;
+  const lctx=lcvs.getContext('2d');
+  const lW=lcvs.width,lH=lcvs.height,pad={t:8,b:20,l:36,r:10};
+  lctx.clearRect(0,0,lW,lH);
+  lctx.fillStyle='#ede9e0';lctx.fillRect(0,0,lW,lH);
+  const allV=OPTIMIZERS.filter(o=>document.getElementById('ck-'+o.key)?.checked)
+    .flatMap(o=>s5lossH[o.key].slice(0,s5step+2));
+  if(allV.length<2)return;
+  const minL=Math.min(...allV),maxL=Math.max(...allV),rng=maxL-minL||1;
+  const xS=i=>pad.l+(i/MAX_STEPS)*(lW-pad.l-pad.r);
+  const yS=v=>pad.t+(1-(v-minL)/rng)*(lH-pad.t-pad.b);
+  lctx.strokeStyle='rgba(30,27,22,0.06)';lctx.lineWidth=1;
+  for(let i=0;i<=3;i++){const y=pad.t+(i/3)*(lH-pad.t-pad.b);lctx.beginPath();lctx.moveTo(pad.l,y);lctx.lineTo(lW-pad.r,y);lctx.stroke();}
+  lctx.font='10px DM Mono,monospace';lctx.fillStyle='rgba(138,128,112,0.9)';
+  lctx.textAlign='right';lctx.fillText(maxL.toFixed(1),pad.l-3,pad.t+4);lctx.fillText(minL.toFixed(1),pad.l-3,lH-pad.b+3);
+  OPTIMIZERS.forEach(opt=>{
+    if(!document.getElementById('ck-'+opt.key)?.checked)return;
+    const pts=s5lossH[opt.key].slice(0,s5step+2);if(pts.length<2)return;
+    lctx.save();lctx.strokeStyle=opt.color;lctx.lineWidth=1.8;lctx.globalAlpha=0.85;lctx.lineJoin='round';
+    lctx.beginPath();lctx.moveTo(xS(0),yS(pts[0]));
+    for(let i=1;i<pts.length;i++)lctx.lineTo(xS(i),yS(pts[i]));
+    lctx.stroke();lctx.restore();
+  });
+}
+
+function getThrottle(spd){
+  const t={1:{spt:1,fp:14},2:{spt:1,fp:9},3:{spt:1,fp:6},4:{spt:1,fp:4},5:{spt:1,fp:2},
+           6:{spt:2,fp:1},7:{spt:4,fp:1},8:{spt:7,fp:1},9:{spt:12,fp:1},10:{spt:20,fp:1}};
+  return t[spd]||{spt:1,fp:8};
+}
+
+function s5animate(){
+  if(!s5anim)return;
+  s5frame++;
+  const{spt,fp}=getThrottle(parseInt(document.getElementById('s5-speed').value));
+  if(s5frame%fp===0){
+    for(let i=0;i<spt&&s5step<MAX_STEPS;i++)s5doStep();
+    renderS5();
+  }
+  if(s5step>=MAX_STEPS){s5anim=false;document.getElementById('btn-play').textContent='▶  Play';return;}
+  s5raf=requestAnimationFrame(s5animate);
+}
+
+function s5stop(){
+  s5anim=false;if(s5raf)cancelAnimationFrame(s5raf);
+  document.getElementById('btn-play').textContent='▶  Play';
+}
+
+function initS5(){
+  buildLegend();
+  s5initOpts();
+  renderS5();
+
+  document.getElementById('btn-play').addEventListener('click',()=>{
+    s5anim=!s5anim;
+    document.getElementById('btn-play').textContent=s5anim?'⏸  Pause':'▶  Play';
+    if(s5anim)s5animate();
+  });
+  document.getElementById('btn-step').addEventListener('click',()=>{
+    if(s5anim)return;s5doStep();renderS5();
+  });
+  document.getElementById('btn-reset').addEventListener('click',()=>{
+    s5stop();s5initOpts();renderS5();
+  });
+  document.getElementById('s5-speed').addEventListener('input',e=>{
+    document.getElementById('s5-spv').textContent=e.target.value;
+  });
+  document.getElementById('s5-lr').addEventListener('input',e=>{
+    s5baseLR=parseInt(e.target.value)/100;
+    document.getElementById('s5-lrv').textContent=s5baseLR.toFixed(2);
+    s5stop();s5initOpts();renderS5();
+  });
+  document.getElementById('s5-surf').addEventListener('click',e=>{
+    const rect=document.getElementById('s5-surf').getBoundingClientRect();
+    const px=(e.clientX-rect.left)*(W5/rect.width);
+    const py=(e.clientY-rect.top)*(H5/rect.height);
+    s5stop();s5initOpts(s5fromC(px,py));renderS5();
+  });
+  document.getElementById('surf-tabs').addEventListener('click',e=>{
+    const btn=e.target.closest('button');if(!btn)return;
+    document.querySelectorAll('#surf-tabs button').forEach(b=>b.classList.remove('active-surf'));
+    btn.classList.add('active-surf');
+    s5surf=btn.dataset.s;
+    s5stop();s5initOpts();renderS5();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════════
+let currentStep=1;
+const STEP_COUNT=5;
+const HINTS=['Observe the data distribution — notice the noise around the trend.',
+             'Use the sliders to move the line — try to fit the data by eye.',
+             'Click anywhere on the loss surface to see how the model changes.',
+             'Click on the loss surface — the arrow shows which direction loss increases.',
+             'Press Play and switch surfaces to compare optimizer behaviors.'];
+const inits=[initS1,initS2,initS3,initS4,initS5];
+const initialized=new Set();
+
+function goTo(n){
+  if(n<1||n>STEP_COUNT)return;
+  document.getElementById('step'+currentStep).classList.remove('active');
+  document.querySelectorAll('.step-pill').forEach(p=>p.classList.remove('active'));
+  currentStep=n;
+  document.getElementById('step'+n).classList.add('active');
+  document.querySelector(`.step-pill[data-target="${n}"]`).classList.add('active');
+  document.getElementById('btn-prev').disabled=n===1;
+  document.getElementById('btn-next').textContent=n===STEP_COUNT?'Finish':'Next →';
+  document.getElementById('footer-hint').textContent=HINTS[n-1];
+  if(!initialized.has(n)){initialized.add(n);inits[n-1]();}
+}
+
+document.getElementById('btn-prev').addEventListener('click',()=>goTo(currentStep-1));
+document.getElementById('btn-next').addEventListener('click',()=>goTo(currentStep+1));
+document.querySelectorAll('.step-pill').forEach(p=>{
+  p.addEventListener('click',()=>goTo(parseInt(p.dataset.target)));
+});
+
+// Init step 1
+initialized.add(1);
+inits[0]();
+
+// Style active surface button
+const style=document.createElement('style');
+style.textContent='.btn.active-surf{background:var(--ink);color:var(--paper);border-color:var(--ink);}';
+document.head.appendChild(style);
+</script>
+</body>
+</html>
